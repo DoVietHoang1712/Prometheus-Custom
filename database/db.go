@@ -17,7 +17,7 @@ func InitDb() *gorm.DB {
 
 func connectDB() *gorm.DB {
 	var err error
-	config, _ := util.LoadConfig(".")
+	config, _ := util.LoadConfig()
 	dsn := config.DBUsername + ":" + config.DBPassword + "@tcp" + "(" + config.DBHost + ":" + config.DBPort + ")/" + config.DBName + "?" + "parseTime=true&loc=Local"
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})

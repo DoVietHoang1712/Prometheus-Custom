@@ -2,6 +2,7 @@ package main
 
 import (
 	"PrometheusCustom/model"
+	"PrometheusCustom/util"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -13,7 +14,8 @@ import (
 
 func GetPodRestarted() []model.PodRestarted {
 	method := "POST"
-	url := "http://localhost:8428/api/v1/query_range"
+	config, _ := util.LoadConfig()
+	url := fmt.Sprintf("http://%s/api/v1/query_range", config.PrometheusUrl)
 	step := "1h"
 	start := time.Now().Add(-6 * time.Hour).Unix()
 	query := "increase(kube_pod_container_status_restarts_total)%20%3E%201"

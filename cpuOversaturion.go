@@ -2,6 +2,7 @@ package main
 
 import (
 	"PrometheusCustom/model"
+	"PrometheusCustom/util"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -62,7 +63,8 @@ func GetCpuOversaturation() []model.CpuOversaturion {
 
 func GetCpuOversaturionByCluster(cluster string) ResponseResource {
 	method := "POST"
-	url := "http://localhost:8428/api/v1/query_range"
+	config, _ := util.LoadConfig()
+	url := fmt.Sprintf("http://%s/api/v1/query_range", config.PrometheusUrl)
 	step := "1h"
 	start := time.Now().Add(-6 * time.Hour).Unix()
 	query := fmt.Sprintf("quantile_over_time(0.9,sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_rate{cluster=\"%s\"}*on(namespace,pod)group_left(workload, workload_type)mixin_pod_workload{cluster=\"%s\", workload_type=\"deployment\"}) by (pod)[1h]/sum(kube_pod_container_resource_requests{resource=\"cpu\", cluster=\"%s\"}* on(namespace,pod)group_left(workload, workload_type) mixin_pod_workload{cluster=\"%s\",workload_type=\"deployment\"}) by (pod)[1h])[6h:1h] > 2", cluster, cluster, cluster, cluster)
@@ -89,7 +91,8 @@ func GetCpuOversaturionByCluster(cluster string) ResponseResource {
 
 func GetPodStartTime(pod string) Response {
 	method := "POST"
-	url := "http://localhost:8428/api/v1/query"
+	config, _ := util.LoadConfig()
+	url := fmt.Sprintf("http://%s/api/v1/query", config.PrometheusUrl)
 	query := fmt.Sprintf("kube_pod_start_time{pod=\"%s\"}", pod)
 	payload := strings.NewReader(fmt.Sprintf("query=%s", query))
 

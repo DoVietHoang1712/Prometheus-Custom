@@ -1,6 +1,7 @@
 package main
 
 import (
+	"PrometheusCustom/util"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -38,7 +39,8 @@ type Pod struct {
 
 func GetAllPods() []Pod {
 	method := "POST"
-	url := "http://localhost:8428/api/v1/query"
+	config, _ := util.LoadConfig()
+	url := fmt.Sprintf("http://%s/api/v1/query", config.PrometheusUrl)
 	payload := strings.NewReader("query=kube_pod_info")
 
 	client := &http.Client{}
