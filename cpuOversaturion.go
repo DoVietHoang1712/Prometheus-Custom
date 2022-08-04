@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -35,26 +36,40 @@ type Response struct {
 	Data   Data   `json:"data"`
 }
 
+type CpuOversaturionResponse struct {
+	CpuOversaturion model.CpuOversaturion `json:"cpuOversaturion"`
+	Values          [][]interface{}       `json:"values"`
+}
+type MetricValue struct {
+	Timestamp               int64
+	Value                   float64
+	CpuOversaturionResponse CpuOversaturionResponse
+}
+
 func GetCpuOversaturation() []model.CpuOversaturion {
-	cpuOversaturationResponse := make([]model.CpuOversaturion, 0)
+	cpuOversaturationResponse := make([]CpuOversaturionResponse, 0)
 	cluster := GetCluster()
 	for k, _ := range cluster {
 		bodyJson := GetCpuOversaturionByCluster(k)
 		for _, data := range bodyJson.Data.Result {
-			cpuOversaturationResponse = append(cpuOversaturationResponse, model.CpuOversaturion{
-				Pod:     data.Metric.Pod,
-				Cluster: k,
-				Time:    int64(data.Value[len(data.Value)-1][0].(float64)),
+			cpuOversaturationResponse = append(cpuOversaturationResponse, CpuOversaturionResponse{
+				CpuOversaturion: model.CpuOversaturion{
+					Pod:     data.Metric.Pod,
+					Cluster: k,
+					Time:    int64(data.Value[len(data.Value)-1][0].(float64)),
+				},
+				Values: data.Value,
 			})
 		}
 	}
+	cpuOversaturationResponse = CheckBurst(cpuOversaturationResponse)
 	result := make([]model.CpuOversaturion, 0)
 	for _, k := range cpuOversaturationResponse {
-		podStartTimeResponse := GetPodStartTime(k.Pod)
+		podStartTimeResponse := GetPodStartTime(k.CpuOversaturion.Pod)
 		if len(podStartTimeResponse.Data.Result) > 0 {
 			timeStart, _ := strconv.ParseFloat(podStartTimeResponse.Data.Result[0].Value[1].(string), 64)
 			if time.Now().Sub(time.Unix(int64(timeStart), 0)).Hours() > 1 {
-				result = append(result, k)
+				result = append(result, k.CpuOversaturion)
 			}
 		}
 	}
@@ -113,4 +128,51 @@ func GetPodStartTime(pod string) Response {
 	var bodyJson Response
 	_ = json.Unmarshal(body, &bodyJson)
 	return bodyJson
+}
+
+func CheckBurst(cpuOversaturions []CpuOversaturionResponse) []CpuOversaturionResponse {
+	result := make([]CpuOversaturionResponse, 0)
+	for _, k := range cpuOversaturions {
+		valueArray := make([]MetricValue, 0)
+		for _, value := range k.Values {
+			valueArray = append(valueArray, MetricValue{
+				Timestamp:               int64(value[0].(float64)),
+				Value:                   value[1].(float64),
+				CpuOversaturionResponse: k,
+			})
+		}
+		if checkBurstByPod(valueArray) {
+			result = append(result, k)
+		}
+	}
+	return result
+}
+
+func checkBurstByPod(value []MetricValue) bool {
+	ascCount := 0
+	descCount := 0
+	flag := 0
+	for i, k := range value {
+		if i == 0 {
+			if k.Value > 1 {
+				ascCount += 1
+				flag = 1
+			} else {
+				descCount += 1
+				flag = 0
+			}
+		} else {
+			if flag == 0 && k.Value > 1 {
+				ascCount += 1
+				flag = 1
+			} else if flag == 1 && k.Value < 1 {
+				descCount += 1
+				flag = 0
+			}
+		}
+	}
+	if math.Abs(float64(ascCount-descCount)) <= 2 {
+		return true
+	}
+	return false
 }
