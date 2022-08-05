@@ -29,7 +29,7 @@
 ### How to check pod restart: Check change of total of pod restart > 0 then save that podName and timeCheck(lastest time change > 0) to db
 ### Data: pod_starteds{id, pod, cluster, time(timeCheck)}. Example: pod_starteds{id=1, pod=bo-v2-7955fc95c5-hngv7, cluster=production, time=1659582503} 
 ## How to get pod cpu oversaturation
-### Calculate saturation=quantile 90% usage/request in 1h from time check. After, filter pods have started time > 1h and burst case.
+### Calculate saturation=quantile 90% usage/request in 1h from time check. After, filter pods have started time > 1h and exclude burst case.
 ### How to check burst case
 #### Get metrics about saturation(usage / request) of pod per 20 seconds for 6 hours before the time of test. After, count the number of intervals where the value is greater than 1 and the value is less than 1. If these two values are close to each other then it is a burst case and exclude this pod.
 ### Data: cpu_oversaturations{id, pod, cluster, time(timeCheck)}. Example: cpu_oversaturations{id=1, pod=bo-v2-7955fc95c5-hngv7, cluster=production, time=1659582503} 
