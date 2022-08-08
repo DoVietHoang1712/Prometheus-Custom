@@ -37,8 +37,8 @@ type Response struct {
 }
 
 type CpuOversaturionResponse struct {
-	CpuOversaturion model.CpuOversaturion `json:"cpuOversaturion"`
-	Values          [][]interface{}       `json:"values"`
+	CpuOversaturion model.CpuOversaturionResponse `json:"cpuOversaturion"`
+	Values          [][]interface{}               `json:"values"`
 }
 
 type CpuSaturation struct {
@@ -61,11 +61,12 @@ func GetCpuOversaturation() []model.CpuOversaturion {
 			for _, workload := range workloads {
 				if workload.Pod == data.Metric.Pod {
 					cpuOversaturationResponse = append(cpuOversaturationResponse, CpuOversaturionResponse{
-						CpuOversaturion: model.CpuOversaturion{
+						CpuOversaturion: model.CpuOversaturionResponse{
 							WorkloadInfo: workload,
 							Workload:     workload.Wordload,
 							Cluster:      k,
 							Time:         int64(data.Value[len(data.Value)-1][0].(float64)),
+							Value:        data.Value[len(data.Value)-1][1].(float64),
 						},
 						Values: data.Value,
 					})
@@ -75,15 +76,33 @@ func GetCpuOversaturation() []model.CpuOversaturion {
 		}
 	}
 	cpuOversaturationResponse = CheckBurst(cpuOversaturationResponse)
-	result := make([]model.CpuOversaturion, 0)
+	arr := make([]model.CpuOversaturionResponse, 0)
 	for _, k := range cpuOversaturationResponse {
 		podStartTimeResponse := GetPodStartTime(k.CpuOversaturion.WorkloadInfo.Pod)
 		if len(podStartTimeResponse.Data.Result) > 0 {
 			timeStart, _ := strconv.ParseFloat(podStartTimeResponse.Data.Result[0].Value[1].(string), 64)
 			if time.Now().Sub(time.Unix(int64(timeStart), 0)).Hours() > 1 {
-				result = append(result, k.CpuOversaturion)
+				arr = append(arr, k.CpuOversaturion)
 			}
 		}
+	}
+	result := make([]model.CpuOversaturion, 0)
+	mapWorkload := make(map[string][]model.CpuOversaturionResponse)
+	for _, k := range arr {
+		mapWorkload[k.Workload] = append(mapWorkload[k.Workload], k)
+	}
+	for k, v := range mapWorkload {
+		sum := 0.0
+		for _, value := range v {
+			sum += value.Value
+		}
+		result = append(result, model.CpuOversaturion{
+			Workload:          k,
+			Cluster:           v[0].Cluster,
+			SuggestCpuRequest: sum / (float64(len(v))),
+			Time:              v[0].Time,
+			WorkloadInfo:      v[0].WorkloadInfo,
+		})
 	}
 	return result
 }
