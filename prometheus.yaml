@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-custom-cm
+data:
+  DB_USERNAME: root
+  DB_PASSWORD: mysqlpw
+  DB_NAME: my_db
+  DB_HOST: localhost
+  DB_PORT: 49153
+  PROMETHEUS_URL: localhost:8428
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus-custom
+spec:
+  selector:
+    matchLabels:
+      app: prometheus-custom
+  template:
+    metadata:
+      labels:
+        app: prometheus-custom
+    spec:
+      containers:
+        - name: prometheus-custom
+          image: hoang1712/prometheus-custom
+          envFrom:
+            - configMapRef:
+                name: prometheus-custom-cm
