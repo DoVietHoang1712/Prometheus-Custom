@@ -15,7 +15,7 @@ PROMETHEUS_URL=localhost:8428
 3. The appliciaton will prediocally write following data to the configured mysql db:
 ```
 Table: pod_starteds(id, pod, cluster, time)
-Table: cpu_oversaturations{id, pod, cluster, time}
+Table: cpu_oversaturations{id, workload, cluster, time, suggested_cpu_request}
 ```
 
 You can pluck the data into Grafana or any data processing pipeline.
