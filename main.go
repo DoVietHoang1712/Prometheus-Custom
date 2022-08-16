@@ -3,19 +3,19 @@ package main
 import (
 	"PrometheusCustom/database"
 	"PrometheusCustom/model"
-	"time"
+	"github.com/jasonlvhit/gocron"
 )
 
 func main() {
-	db := database.InitDb()
-	db.AutoMigrate(&model.CpuOversaturion{})
-	db.AutoMigrate(&model.PodRestarted{})
-	for {
+
+	gocron.Every(1).Day().At("17:13").Do(func() {
+		db := database.InitDb()
+		db.AutoMigrate(&model.CpuOversaturion{})
+		db.AutoMigrate(&model.PodRestarted{})
 		cpuOversaturationResponse := GetCpuOversaturation()
 		model.CreateCpuOversaturion(db, cpuOversaturationResponse)
 		podRestartedResponse := GetPodRestarted()
 		model.CreatePodRestarted(db, podRestartedResponse)
-		time.Sleep(15 * time.Minute)
-	}
-
+	})
+	<-gocron.Start()
 }

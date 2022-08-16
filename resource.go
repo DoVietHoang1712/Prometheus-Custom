@@ -14,6 +14,7 @@ type MetricResource struct {
 	Namespace string `json:"namespace"`
 	Node      string `json:"node"`
 	Pod       string `json:"pod"`
+	Container string `json:"container"`
 }
 
 type ResultResource struct {
@@ -29,6 +30,21 @@ type DataResource struct {
 type ResponseResource struct {
 	Status string       `json:"status"`
 	Data   DataResource `json:"data"`
+}
+
+type ResultRequestContainer struct {
+	Metric MetricResource `json:"metric"`
+	Value  []interface{}  `json:"value"`
+}
+
+type DataRequestContainer struct {
+	ResultType string                   `json:"resultType"`
+	Result     []ResultRequestContainer `json:"result"`
+}
+
+type ResponseRequestContainer struct {
+	Status string               `json:"status"`
+	Data   DataRequestContainer `json:"data"`
 }
 type Pod struct {
 	Name      string `json:"name"`
