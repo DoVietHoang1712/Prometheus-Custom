@@ -12,13 +12,17 @@ type MetricWorkload struct {
 	Cluster      string `json:"cluster"`
 	Namespace    string `json:"namespace"`
 	Pod          string `json:"pod"`
-	Wordload     string `json:"wordload"`
+	Wordload     string `json:"workload"`
 	WorkloadType string `json:"workload_type"`
 }
 
+type ResultMetric struct {
+	Metric MetricWorkload `json:"metric"`
+}
+
 type WorkloadData struct {
-	Result     []MetricWorkload `json:"result"`
-	ResultType string           `json:"resultType"`
+	Result     []ResultMetric `json:"result"`
+	ResultType string         `json:"resultType"`
 }
 
 type WorkloadResponse struct {
@@ -31,7 +35,6 @@ func GetWorkload() []MetricWorkload {
 	config, _ := LoadConfig()
 	url := fmt.Sprintf("http://%s/api/v1/query", config.PrometheusUrl)
 	payload := strings.NewReader("query=mixin_pod_workload")
-
 	client := &http.Client{}
 	req, err := http.NewRequest(method, url, payload)
 
@@ -48,5 +51,9 @@ func GetWorkload() []MetricWorkload {
 	body, _ := ioutil.ReadAll(res.Body)
 	var bodyJson WorkloadResponse
 	_ = json.Unmarshal(body, &bodyJson)
-	return bodyJson.Data.Result
+	result := make([]MetricWorkload, 0)
+	for _, r := range bodyJson.Data.Result {
+		result = append(result, r.Metric)
+	}
+	return result
 }

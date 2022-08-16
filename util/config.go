@@ -1,7 +1,5 @@
 package util
 
-import "os"
-
 type Config struct {
 	DBUsername    string `mapstructure:"DB_USERNAME"`
 	DBPassword    string `mapstructure:"DB_PASSWORD"`
@@ -13,11 +11,11 @@ type Config struct {
 
 func LoadConfig() (config Config, err error) {
 	return Config{
-		DBUsername:    os.Getenv("DB_USERNAME"),
-		DBPassword:    os.Getenv("DB_PASSWORD"),
-		DBName:        os.Getenv("DB_NAME"),
-		DBHost:        os.Getenv("DB_HOST"),
-		DBPort:        os.Getenv("DB_PORT"),
-		PrometheusUrl: os.Getenv("PROMETHEUS_URL"),
+		DBUsername:    "stats",
+		DBPassword:    "yW!v6fX6NccJsK",
+		DBName:        "stats",
+		DBHost:        "localhost",
+		DBPort:        "5432",
+		PrometheusUrl: "localhost:8428",
 	}, nil
 }

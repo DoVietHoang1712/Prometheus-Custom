@@ -4,7 +4,7 @@ import (
 	"PrometheusCustom/model"
 	"PrometheusCustom/util"
 	"fmt"
-	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -18,9 +18,9 @@ func InitDb() *gorm.DB {
 func connectDB() *gorm.DB {
 	var err error
 	config, _ := util.LoadConfig()
-	dsn := config.DBUsername + ":" + config.DBPassword + "@tcp" + "(" + config.DBHost + ":" + config.DBPort + ")/" + config.DBName + "?" + "parseTime=true&loc=Local"
-
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	dsn := "postgres://" + config.DBUsername + ":" + config.DBPassword + "@" + config.DBHost + ":" + config.DBPort + "/" + config.DBName
+	fmt.Println(dsn)
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 
 	if err != nil {
 		fmt.Println("Error connecting to database : error=%v", err)

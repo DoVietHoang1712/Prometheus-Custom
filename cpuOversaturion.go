@@ -60,13 +60,15 @@ func GetCpuOversaturation() []model.CpuOversaturion {
 		for _, data := range bodyJson.Data.Result {
 			for _, workload := range workloads {
 				if workload.Pod == data.Metric.Pod {
+					value, _ := strconv.ParseFloat(data.Value[len(data.Value)-1][1].(string), 64)
 					cpuOversaturationResponse = append(cpuOversaturationResponse, CpuOversaturionResponse{
 						CpuOversaturion: model.CpuOversaturionResponse{
 							WorkloadInfo: workload,
 							Workload:     workload.Wordload,
+							Namespace:    workload.Namespace,
 							Cluster:      k,
 							Time:         int64(data.Value[len(data.Value)-1][0].(float64)),
-							Value:        data.Value[len(data.Value)-1][1].(float64),
+							Value:        value,
 						},
 						Values: data.Value,
 					})
@@ -91,15 +93,18 @@ func GetCpuOversaturation() []model.CpuOversaturion {
 	for _, k := range arr {
 		mapWorkload[k.Workload] = append(mapWorkload[k.Workload], k)
 	}
+	fmt.Println(mapWorkload)
 	for k, v := range mapWorkload {
 		sum := 0.0
 		for _, value := range v {
-			sum += value.Value
+			cpuUsage, _ := strconv.ParseFloat(GetCpuUsageByPod(value).Values[0][1].(string), 64)
+			sum += cpuUsage * 1.2
 		}
 		result = append(result, model.CpuOversaturion{
+			Namespace:         v[0].Namespace,
 			Workload:          k,
 			Cluster:           v[0].Cluster,
-			SuggestCpuRequest: sum / (float64(len(v))),
+			SuggestCpuRequest: sum,
 			Time:              v[0].Time,
 			WorkloadInfo:      v[0].WorkloadInfo,
 		})
@@ -185,10 +190,45 @@ func GetCpuSaturationByPod(cpuOversaturion CpuOversaturionResponse) CpuOversatur
 	body, _ := ioutil.ReadAll(res.Body)
 	var bodyJson ResponseResource
 	_ = json.Unmarshal(body, &bodyJson)
-	return CpuOversaturionResponse{
-		CpuOversaturion: cpuOversaturion.CpuOversaturion,
-		Values:          bodyJson.Data.Result[0].Value,
+	if len(bodyJson.Data.Result) > 0 {
+		return CpuOversaturionResponse{
+			CpuOversaturion: cpuOversaturion.CpuOversaturion,
+			Values:          bodyJson.Data.Result[0].Value,
+		}
 	}
+	return CpuOversaturionResponse{}
+}
+
+func GetCpuUsageByPod(cpuOversaturion model.CpuOversaturionResponse) CpuOversaturionResponse {
+	method := "POST"
+	config, _ := util.LoadConfig()
+	url := fmt.Sprintf("http://%s/api/v1/query_range", config.PrometheusUrl)
+	step := "1h"
+	start := time.Now().Add(-6 * time.Hour).Unix()
+	query := fmt.Sprintf("sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_rate{pod=\"%s\", container!=\"POD\"}) by (container)", cpuOversaturion.WorkloadInfo.Pod)
+	payload := strings.NewReader(fmt.Sprintf("query=%s&start=%d&step=%s", query, start, step))
+	client := &http.Client{}
+	req, err := http.NewRequest(method, url, payload)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	res, _ := client.Do(req)
+
+	defer res.Body.Close()
+
+	body, _ := ioutil.ReadAll(res.Body)
+	var bodyJson ResponseResource
+	_ = json.Unmarshal(body, &bodyJson)
+	if len(bodyJson.Data.Result) > 0 {
+		return CpuOversaturionResponse{
+			Values: bodyJson.Data.Result[0].Value,
+		}
+	}
+	return CpuOversaturionResponse{}
 }
 
 func CheckBurst(cpuOversaturions []CpuOversaturionResponse) []CpuOversaturionResponse {
@@ -197,9 +237,10 @@ func CheckBurst(cpuOversaturions []CpuOversaturionResponse) []CpuOversaturionRes
 		cpuSaturation := GetCpuSaturationByPod(k)
 		valueArray := make([]MetricValue, 0)
 		for _, value := range cpuSaturation.Values {
+			val, _ := strconv.ParseFloat(value[1].(string), 64)
 			valueArray = append(valueArray, MetricValue{
 				Timestamp:               int64(value[0].(float64)),
-				Value:                   value[1].(float64),
+				Value:                   val,
 				CpuOversaturionResponse: k,
 			})
 		}
