@@ -74,9 +74,18 @@ func GetCpuOversaturation() []model.CpuOversaturion {
 	arr := make([]model.CpuOversaturionResponse, 0)
 	for _, k := range cpuOversaturationResponse {
 		podStartTimeResponse := GetPodStartTime(k.CpuOversaturion.WorkloadInfo.Pod)
+		podDeleteTimeResponse := GetPodDeleteTime(k.CpuOversaturion.WorkloadInfo.Pod)
+		var timeDelete time.Time
+		if len(podDeleteTimeResponse.Data.Result) == 0 {
+			timeDelete = time.Now()
+		} else {
+			timeDeleteResponse, _ := strconv.ParseFloat(podStartTimeResponse.Data.Result[0].Value[1].(string), 64)
+			timeDelete = time.Unix(int64(timeDeleteResponse), 0)
+			fmt.Println(timeDelete)
+		}
 		if len(podStartTimeResponse.Data.Result) > 0 {
 			timeStart, _ := strconv.ParseFloat(podStartTimeResponse.Data.Result[0].Value[1].(string), 64)
-			if time.Now().Sub(time.Unix(int64(timeStart), 0)).Hours() > 1 {
+			if timeDelete.Sub(time.Unix(int64(timeStart), 0)).Hours() > 1 {
 				arr = append(arr, k.CpuOversaturion)
 			}
 		}
@@ -91,18 +100,24 @@ func GetCpuOversaturation() []model.CpuOversaturion {
 			cpuRequests := GetCpuRequestByContainer(val)
 			cpuSaturations := GetCpuSaturationByContainer(val)
 			for index, va := range cpuRequests {
-				cpuSaturation, _ := strconv.ParseFloat(cpuSaturations[index].Values[len(cpuSaturations[index].Values)-1][1].(string), 64)
-				cpuRequest, _ := strconv.ParseFloat(va.Values[len(va.Values)-1][1].(string), 64)
-				result = append(result, model.CpuOversaturion{
-					Workload:          k,
-					Cluster:           v[0].Cluster,
-					Namespace:         v[0].Namespace,
-					Container:         va.CpuOversaturion.Container,
-					CpuSaturation:     cpuSaturation,
-					SuggestCpuRequest: cpuRequest * cpuSaturation,
-					Time:              int64(va.Values[len(va.Values)-1][0].(float64)),
-					WorkloadInfo:      util.MetricWorkload{},
-				})
+				for _, value := range cpuSaturations {
+					if va.CpuOversaturion.Container == value.CpuOversaturion.Container {
+						cpuSaturation, _ := strconv.ParseFloat(cpuSaturations[index].Values[len(cpuSaturations[index].Values)-1][1].(string), 64)
+						cpuRequest, _ := strconv.ParseFloat(va.Values[len(va.Values)-1][1].(string), 64)
+						fmt.Println(k, v[0].Cluster, v[0].Namespace, va.CpuOversaturion.Container)
+						result = append(result, model.CpuOversaturion{
+							Workload:          k,
+							Cluster:           val.Cluster,
+							Namespace:         val.Namespace,
+							Container:         va.CpuOversaturion.Container,
+							CpuSaturation:     cpuSaturation,
+							SuggestCpuRequest: cpuRequest * cpuSaturation,
+							Time:              int64(va.Values[len(va.Values)-1][0].(float64)),
+							WorkloadInfo:      util.MetricWorkload{},
+						})
+						break
+					}
+				}
 			}
 		}
 	}
@@ -139,6 +154,32 @@ func GetPodStartTime(pod string) Response {
 	config, _ := util.LoadConfig()
 	url := fmt.Sprintf("http://%s/api/v1/query", config.PrometheusUrl)
 	query := fmt.Sprintf("kube_pod_start_time{pod=\"%s\"}", pod)
+	payload := strings.NewReader(fmt.Sprintf("query=%s", query))
+
+	client := &http.Client{}
+	req, err := http.NewRequest(method, url, payload)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	res, _ := client.Do(req)
+
+	defer res.Body.Close()
+
+	body, _ := ioutil.ReadAll(res.Body)
+	var bodyJson Response
+	_ = json.Unmarshal(body, &bodyJson)
+	return bodyJson
+}
+
+func GetPodDeleteTime(pod string) Response {
+	method := "POST"
+	config, _ := util.LoadConfig()
+	url := fmt.Sprintf("http://%s/api/v1/query", config.PrometheusUrl)
+	query := fmt.Sprintf("kube_pod_deletion_timestamp{pod=\"%s\"}", pod)
 	payload := strings.NewReader(fmt.Sprintf("query=%s", query))
 
 	client := &http.Client{}
