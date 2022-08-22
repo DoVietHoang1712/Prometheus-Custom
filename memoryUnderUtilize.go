@@ -58,6 +58,7 @@ type MemoryUnderUtilize struct {
 	MemoryUnderUtilize1Day float64
 	MemoryUnderUtilize3Day float64
 	MemoryUnderUtilize7Day float64
+	SuggestMemoryLimit     int64
 	SuggestMemoryRequest   int64
 	Time                   int64
 }
@@ -79,6 +80,7 @@ func GetMemoryUnderUtilize() []model.MemoryUnderUtilize {
 			memoryUsagePod1Day := GetMemoryUsageByContainerAndWorkload(k, kk.Namespace, kk.Wordload, 24)
 			memoryUsagePod3Day := GetMemoryUsageByContainerAndWorkload(k, kk.Namespace, kk.Wordload, 72)
 			memoryUsagePod7Day := GetMemoryUsageByContainerAndWorkload(k, kk.Namespace, kk.Wordload, 168)
+			memoryRequest := GetSuggestMemoryRequest(k, kk.Namespace, kk.Wordload)
 			requestMem := v
 			maxUsage1Day, timeCheck1Day := GetMaxUsage(memoryUsagePod1Day)
 			maxUsage3Day, timeCheck3Day := GetMaxUsage(memoryUsagePod3Day)
@@ -95,7 +97,8 @@ func GetMemoryUnderUtilize() []model.MemoryUnderUtilize {
 					MemoryUnderUtilize1Day: requestMem.MemoryRequest / maxUsage1Day,
 					MemoryUnderUtilize3Day: requestMem.MemoryRequest / maxUsage3Day,
 					MemoryUnderUtilize7Day: requestMem.MemoryRequest / maxUsage7Day,
-					SuggestMemoryRequest:   int64(maxUsage1Day * (1 + addOn/100)),
+					SuggestMemoryLimit:     int64(maxUsage1Day * (1 + addOn/100)),
+					SuggestMemoryRequest:   memoryRequest,
 					Time:                   time.Now().Unix(),
 				})
 			}
@@ -112,6 +115,7 @@ func GetMemoryUnderUtilize() []model.MemoryUnderUtilize {
 			MemoryUnderUtilize3Day: k.MemoryUnderUtilize3Day,
 			MemoryUnderUtilize7Day: k.MemoryUnderUtilize7Day,
 			SuggestMemoryRequest:   k.SuggestMemoryRequest,
+			SuggestMemoryLimit:     k.SuggestMemoryLimit,
 			Time:                   k.Time,
 		})
 	}
@@ -126,7 +130,6 @@ func GetMemoryRequestByCluster(cluster string) MemoryRequestResponse {
 	payload := strings.NewReader(fmt.Sprintf("query=%s", query))
 	client := &http.Client{}
 	req, err := http.NewRequest(method, url, payload)
-
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -199,4 +202,32 @@ func GetWorkloadMemoryRequest(workloads []util.MetricWorkload, bodyJson MemoryRe
 		}
 	}
 	return result
+}
+
+func GetSuggestMemoryRequest(cluster, namespace, workload string) (request int64) {
+	method := "POST"
+	config, _ := util.LoadConfig()
+	url := fmt.Sprintf("http://%s/api/v1/query", config.PrometheusUrl)
+	query := fmt.Sprintf("quantile(0.85, sum(container_memory_working_set_bytes{cluster=\"%s\", namespace=\"%s\",container!=\"POD\", container != \"\"}* on(namespace,pod)group_left(workload, workload_type) mixin_pod_workload{cluster=\"%s\",namespace=\"%s\",workload=\"%s\",workload_type=\"deployment\"}) by (pod)[168h:1h])", cluster, namespace, cluster, namespace, workload)
+	payload := strings.NewReader(fmt.Sprintf("query=%s", query))
+	client := &http.Client{}
+	req, err := http.NewRequest(method, url, payload)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	res, _ := client.Do(req)
+
+	defer res.Body.Close()
+
+	body, _ := ioutil.ReadAll(res.Body)
+	var bodyJson MemoryRequestResponse
+	_ = json.Unmarshal(body, &bodyJson)
+	if len(bodyJson.Data.Result) > 0 {
+		res, _ := strconv.ParseFloat(bodyJson.Data.Result[0].Value[1].(string), 64)
+		request = int64(res)
+	}
+	return
 }

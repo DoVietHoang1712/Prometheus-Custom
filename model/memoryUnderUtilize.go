@@ -14,6 +14,7 @@ type MemoryUnderUtilize struct {
 	MemoryUnderUtilize1Day float64
 	MemoryUnderUtilize3Day float64
 	MemoryUnderUtilize7Day float64
+	SuggestMemoryLimit     int64
 	SuggestMemoryRequest   int64
 	Time                   int64
 	WorkloadInfo           util.MetricWorkload `gorm:"-"`
@@ -28,7 +29,8 @@ type MemoryUnderUtilizeResponse struct {
 	MemoryUnderUtilize1Day float64
 	MemoryUnderUtilize3Day float64
 	MemoryUnderUtilize7Day float64
-	SuggestMemoryRequest   float64
+	SuggestMemoryLimit     float64
+	SuggestMemoryRequest   int64
 	Value                  float64
 	Time                   int64
 	WorkloadInfo           util.MetricWorkload
