@@ -29,5 +29,6 @@ func connectDB() *gorm.DB {
 
 	db.AutoMigrate(&model.CpuOversaturion{})
 	db.AutoMigrate(&model.PodRestarted{})
+	db.AutoMigrate(&model.MemoryUnderUtilize{})
 	return db
 }

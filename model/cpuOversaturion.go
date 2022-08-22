@@ -11,7 +11,9 @@ type CpuOversaturion struct {
 	Cluster           string `gorm:"size:255;not null;" json:"cluster"`
 	Namespace         string `gorm:"size:255;null;" json:"namespace"`
 	Container         string `gorm:"size:255;null" json:"container"`
-	CpuSaturation     float64
+	CpuSaturation1Day float64
+	CpuSaturation3Day float64
+	CpuSaturation7Day float64
 	SuggestCpuRequest float64
 	Time              int64
 	WorkloadInfo      util.MetricWorkload `gorm:"-"`
@@ -23,7 +25,9 @@ type CpuOversaturionResponse struct {
 	Cluster           string `json:"cluster"`
 	Namespace         string `json:"namespace"`
 	Container         string `json:"container"`
-	CpuSaturation     float64
+	CpuSaturation1Day float64
+	CpuSaturation3Day float64
+	CpuSaturation7Day float64
 	SuggestCpuRequest float64
 	Value             float64
 	Time              int64

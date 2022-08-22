@@ -14,6 +14,7 @@ type Config struct {
 	PrometheusUrl string
 	TimeStart     string
 	TimeZone      string
+	AddonPercent  string
 }
 
 func LoadConfig() (config Config, err error) {
@@ -26,6 +27,7 @@ func LoadConfig() (config Config, err error) {
 		PrometheusUrl: "localhost:8428",
 		TimeStart:     "15:07",
 		TimeZone:      "Asia/Bangkok",
+		AddonPercent:  "15",
 	}, nil
 }
 

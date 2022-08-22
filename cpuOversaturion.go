@@ -98,25 +98,27 @@ func GetCpuOversaturation() []model.CpuOversaturion {
 	for k, v := range mapWorkload {
 		for _, val := range v {
 			cpuRequests := GetCpuRequestByContainer(val)
-			cpuSaturations := GetCpuSaturationByContainer(val)
+			cpuSaturations1Day := GetCpuSaturationByContainer(val, 24)
+			cpuSaturations3Day := GetCpuSaturationByContainer(val, 72)
+			cpuSaturations7Day := GetCpuSaturationByContainer(val, 168)
 			for index, va := range cpuRequests {
-				for _, value := range cpuSaturations {
-					if va.CpuOversaturion.Container == value.CpuOversaturion.Container {
-						cpuSaturation, _ := strconv.ParseFloat(cpuSaturations[index].Values[len(cpuSaturations[index].Values)-1][1].(string), 64)
-						cpuRequest, _ := strconv.ParseFloat(va.Values[len(va.Values)-1][1].(string), 64)
-						fmt.Println(k, v[0].Cluster, v[0].Namespace, va.CpuOversaturion.Container)
-						result = append(result, model.CpuOversaturion{
-							Workload:          k,
-							Cluster:           val.Cluster,
-							Namespace:         val.Namespace,
-							Container:         va.CpuOversaturion.Container,
-							CpuSaturation:     cpuSaturation,
-							SuggestCpuRequest: cpuRequest * cpuSaturation,
-							Time:              int64(va.Values[len(va.Values)-1][0].(float64)),
-							WorkloadInfo:      util.MetricWorkload{},
-						})
-						break
-					}
+				cpuSaturation1Day, _ := GetCpuSaturation(cpuSaturations1Day, va, index)
+				cpuSaturation3Day, _ := GetCpuSaturation(cpuSaturations3Day, va, index)
+				cpuSaturation7Day, _ := GetCpuSaturation(cpuSaturations7Day, va, index)
+				cpuRequest, _ := strconv.ParseFloat(va.Values[len(va.Values)-1][1].(string), 64)
+				if cpuSaturation1Day > 0 && cpuSaturation3Day > 0 && cpuSaturation7Day > 0 {
+					result = append(result, model.CpuOversaturion{
+						Workload:          k,
+						Cluster:           val.Cluster,
+						Namespace:         val.Namespace,
+						Container:         va.CpuOversaturion.Container,
+						CpuSaturation1Day: cpuSaturation1Day,
+						CpuSaturation3Day: cpuSaturation3Day,
+						CpuSaturation7Day: cpuSaturation7Day,
+						SuggestCpuRequest: cpuRequest * cpuSaturation1Day,
+						Time:              int64(va.Values[len(va.Values)-1][0].(float64)),
+						WorkloadInfo:      util.MetricWorkload{},
+					})
 				}
 			}
 		}
@@ -300,11 +302,11 @@ func GetCpuRequestByContainer(cpuOversaturion model.CpuOversaturionResponse) []C
 	return result
 }
 
-func GetCpuSaturationByContainer(cpuOversaturion model.CpuOversaturionResponse) []CpuOversaturionResponse {
+func GetCpuSaturationByContainer(cpuOversaturion model.CpuOversaturionResponse, timeRange int64) []CpuOversaturionResponse {
 	method := "POST"
 	config, _ := util.LoadConfig()
 	url := fmt.Sprintf("http://%s/api/v1/query", config.PrometheusUrl)
-	query := fmt.Sprintf("quantile_over_time(0.85,sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_rate{pod=\"%s\"}*on(namespace,pod)group_left(workload,workload_type)mixin_pod_workload{pod=\"%s\"})by(container)/sum(kube_pod_container_resource_requests{resource=\"cpu\",pod=\"%s\"}*on(namespace,pod)group_left(workload,workload_type)mixin_pod_workload{pod=\"%s\"})by (container))[9h:1h]", cpuOversaturion.WorkloadInfo.Pod, cpuOversaturion.WorkloadInfo.Pod, cpuOversaturion.WorkloadInfo.Pod, cpuOversaturion.WorkloadInfo.Pod)
+	query := fmt.Sprintf("quantile_over_time(0.85,sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_rate{pod=\"%s\"}*on(namespace,pod)group_left(workload,workload_type)mixin_pod_workload{pod=\"%s\"})by(container)/sum(kube_pod_container_resource_requests{resource=\"cpu\",pod=\"%s\"}*on(namespace,pod)group_left(workload,workload_type)mixin_pod_workload{pod=\"%s\"})by (container))[%dh:1h]", cpuOversaturion.WorkloadInfo.Pod, cpuOversaturion.WorkloadInfo.Pod, cpuOversaturion.WorkloadInfo.Pod, cpuOversaturion.WorkloadInfo.Pod, timeRange)
 	payload := strings.NewReader(fmt.Sprintf("query=%s", query))
 	client := &http.Client{}
 	req, err := http.NewRequest(method, url, payload)
@@ -381,4 +383,16 @@ func checkBurstByPod(value []MetricValue) bool {
 		return true
 	}
 	return false
+}
+
+func GetCpuSaturation(cpuSaturations []CpuOversaturionResponse, va CpuOversaturionResponse, index int) (saturation float64, timeCheck int64) {
+	for _, value := range cpuSaturations {
+		if va.CpuOversaturion.Container == value.CpuOversaturion.Container {
+			cpuSaturation, _ := strconv.ParseFloat(cpuSaturations[index].Values[len(cpuSaturations[index].Values)-1][1].(string), 64)
+			saturation = cpuSaturation
+			timeCheck = int64(va.Values[len(va.Values)-1][0].(float64))
+			break
+		}
+	}
+	return saturation, timeCheck
 }
